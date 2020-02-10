@@ -1,0 +1,69 @@
+project ngs1
+Activate the enviornment
+
+conda activate ngs1
+download sample data and referance genome
+Download sample data(fastaq sequence)
+
+mkdir -p ~/project/sample_data && cd ~/project/sample_data
+
+webget https://sra-download.ncbi.nlm.nih.gov/traces/sra45/SRZ/011014/SRR11014546/8.fastq
+download reference genome
+
+mkdir -p ~/project/ref_data && cd ~/project/ref_data
+
+webget ftp://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_29/GRCh38.p12.genome.fa.gz
+
+gunzip GRCh38.p12.genome.fa.gz
+install blast
+
+conda install -c bioconda -y blast
+index your genome
+
+mkdir -p ~/project/blast_align/blastIndex && cd ~/project/blast_align/blastIndex
+
+ln -sf ~/project/ref_data/GRCh38.p12.genome.fa
+
+makeblastdb -in GRCh38.p12.genome.fa -dbtype nucl
+prepare your sample data
+convert fastaq to fasta
+
+sed -n '1~4s/^@/>/p;2~4p' sample8.fastq > sample8.fasta
+subset your sample data
+
+head -n500 sample8.fa > sample8_subset.fa
+sequence alignment
+
+cd ~/project/blast_align
+
+/usr/bin/time -v blastn -db blastIndex/GRCh38.p12.genome.fa -query sample8_subset.fa -outfmt 5 -out sample8.xml
+convert to sam
+
+conda install -c conda-forge -y biopython
+
+wget https://gist.githubusercontent.com/ozagordi/099bdb796507da8d9426/raw/6ca66616fd545fbb15d94b079e46a7c55edb54c0/blast2sam.py
+
+python blast2sam.py sample8.xml > sample8.sam
+parsaing output file
+install Samtools
+
+conda install -y samtools
+convert SAM file to BAM
+
+samtools view -S -b sample8.sam -o sample8.bam
+Sorting the BAM file
+
+samtools sort sample8.bam -o sorted_sample8.bam
+calculate secondry alignment
+
+samtools view -b -q 0x0100 sorted_sample8.bam | wc -l > filtered_sample8.bam
+calculate GC % and mean MAQC and present in a plot
+
+conda install -c bioconda samtools
+
+samtools stats --GC-depth 2e6 sorted_sample8.bam > sorted_sample8.bam.bc
+present in a plot
+
+conda install -c bioconda gnuplot or sudo apt-get install -y gnuplot
+
+plot-bamstats -p ~/home/project/blast_align/sorted_sample8.bam.bc sorted_sample8.bam.bc
